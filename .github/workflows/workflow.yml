@@ -1,0 +1,66 @@
+name: Test & deploy a serverless function to AWS Lambda
+
+on: push
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.x]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+      - name: List all files
+        run: ls -al
+      - name: Create bundle zip file
+        run: |
+          zip -rj bundle.zip lambda_function.py
+          zip -sf bundle.zip
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Deploy function to Test environment
+        run: aws lambda update-function-code --function-name test_teslafi_watch --zip-file fileb://bundle.zip
+      - name: Pause 10 seconds for function to become available
+        run: sleep 10
+      - name: Make test script executable
+        run: chmod +x teslafi_watch_function_test.sh
+      - name: Execute test script
+        env:
+          TEST_FUNCTION_URL: ${{ secrets.TEST_FUNCTION_URL }}
+          TEST_TESLAFI_TOKEN: ${{ secrets.TEST_TESLAFI_TOKEN }}
+        run: ./teslafi_watch_function_test.sh $TEST_FUNCTION_URL $TEST_TESLAFI_TOKEN
+  
+  Deploy:
+    needs: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+      - name: List all files
+        run: ls -al
+      - name: Create bundle zip file
+        run: |
+          zip -rj bundle.zip lambda_function.py
+          zip -sf bundle.zip
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Deploy function to Prod environment
+        run: aws lambda update-function-code --function-name prod_teslafi_watch --zip-file fileb://bundle.zip
+      - name: Pause 10 seconds for function to become available
+        run: sleep 10
+      - name: Make test script executable
+        run: chmod +x teslafi_watch_function_test.sh
+      - name: Execute test script
+        env:
+          PROD_FUNCTION_URL: ${{ secrets.PROD_FUNCTION_URL }}
+          TEST_TESLAFI_TOKEN: ${{ secrets.TEST_TESLAFI_TOKEN }}
+        run: ./teslafi_watch_function_test.sh $PROD_FUNCTION_URL $TEST_TESLAFI_TOKEN
